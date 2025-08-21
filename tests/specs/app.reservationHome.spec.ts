@@ -1,0 +1,496 @@
+var assert = require('assert');
+const { RESERVATION_TYPE, DEPARTMENT_PROVIDER } = require('./app.common.spec.ts');
+const { sleep, compareTextView, selectFromCalendar } = require('./app.common.spec.ts');
+
+//search textbox
+let searchBox;
+
+describe('HOME', () => {
+    before(async () => {
+        global.testUser.isMinor = false;
+        global.testModule = 'HOME';
+    });
+
+    describe('Login', () => {
+        it('TC1-1: open app', async () => {
+            // system notification
+            const notification = await driver.$('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]');
+            await notification.click();
+            await sleep(500);
+
+            // skip
+            const skip = await driver.$('//android.widget.TextView[@text="Skip"]');
+            await skip.click();
+            await sleep(500);
+
+            //TODO: if OTA appears, proceed it
+            //OTA
+            const ota = await driver.$('//android.view.ViewGroup[@content-desc="Update Now"]');
+            console.log('OTA(obj): ', ota);
+            console.log('OTA(flg): ', ota.isReactElement);
+            if (ota !== null && ota.isReactElement == true) {
+                await ota.click();
+                await sleep(500);
+
+                //OTA Restart
+                const restrat = await driver.$('//android.widget.TextView[@text="Restart"]');
+                console.log('Restart: ', restrat);
+                if (restrat !== null && restrat.isReactElement == true) {
+                    await restrat.click();
+                    await sleep(500);
+                }
+            }
+            //Login
+            const login = await driver.$('//android.view.ViewGroup[@content-desc="Login"]');
+            await login.click();
+        });
+
+        it('TC1-2: login', async () => {
+            //Login input
+            const id = await driver.$('//android.widget.EditText[@text="Email"]');
+            await id.setValue(global.testUser.loginEmail);
+            const pw = await driver.$('//android.widget.EditText[@text="Password"]');
+            await pw.setValue(global.testUser.loginPw);
+            const login = await driver.$('(//android.widget.TextView[@text="Login"])[2]');
+            await login.click();
+            await sleep(1000);
+
+            //TODO: if membership video or newsletter appears
+            // get footer (Home)
+            const footer = await driver.$('//android.widget.TextView[@text="Home"]');
+            assert.equal(await footer.getAttribute('text'), 'Home');
+            global.testUser.isLogin = true;
+        });
+    });
+
+    describe('Make a Researvation (adult)', () => {
+        beforeEach(function () {
+            if (!global.testUser.isLogin) {
+                console.log('User Not LoggedIn!!');
+                this.skip();
+            }
+        });
+
+        it('TC2-1: check selected member', async () => {
+            // check Name
+            const path = '//android.widget.TextView[@text="' + global.testUser.member.firstName + ' ' + global.testUser.member.lastName + '"]';
+            const name = await driver.$(path);
+            assert.equal(await name.getAttribute('text'), global.testUser.member.firstName + ' ' + global.testUser.member.lastName);
+        });
+
+        it('TC2-2: click Make Researvation button', async () => {
+
+            // check Name
+            const path = '//android.widget.TextView[@text="' + global.testUser.member.firstName + ' ' + global.testUser.member.lastName + '"]';
+            const name = await driver.$(path);
+            assert.equal(await name.getAttribute('text'), global.testUser.member.firstName + ' ' + global.testUser.member.lastName);
+
+            let button;
+            try {
+            // clcik Make a Reservation
+                button = await driver.$('//android.view.ViewGroup[@content-desc="You have no upcoming reservations, Make a Reservation"]/android.view.ViewGroup[1]');
+                await button.click();
+            
+            // there is a reservation already, so cancel the reservation
+            } catch (err) {    
+                // click Cancel
+                console.log('There is a reservation already!');
+                const cancel = await driver.$('//android.view.ViewGroup[@content-desc="Cancel"]');
+                await cancel.click();
+                await sleep(500);
+
+                // click Cancel Reservation on modal
+                const confirm = await driver.$('//android.view.ViewGroup[@content-desc="Cancel Reservation"]');
+                await confirm.click();
+                await sleep(1000);
+                button = await driver.$('//android.view.ViewGroup[@content-desc="You have no upcoming reservations, Make a Reservation"]/android.view.ViewGroup[1]');
+            }
+                
+            await button.click();
+            await sleep(500);
+
+            // check the title on the next page
+            const title = await driver.$('//android.widget.TextView[@text="Make a Reservation"]');
+            assert.equal(await title.getAttribute('text'), 'Make a Reservation');
+        });
+
+        it.skip('TC2-3: check appointment type', async () => {
+            let cnt=0;
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+
+            let result = await compareTextView(textView, RESERVATION_TYPE);
+            assert.equal(result, true);
+            // for (let i = 0; i < textView.length; i++) {
+            //     const text = await textView[i].getText();
+            //     console.log(`TextView #${i}: text='${text}'`);
+            //     for (let jj = 0; jj < global.appointmentType.length; jj++) {
+            //         if (text == global.appointmentType[jj]) { 
+            //             cnt++;
+            //             break;
+            //         }
+            //     }
+            // }
+        });
+
+        it('TC2-4: click doctor\'s appointment', async () => {
+            // click doctor's button
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="With a Doctor"]');
+            await button.click();
+            await sleep(500);
+
+            // click continue button
+            const next = await driver.$('//android.view.ViewGroup[@content-desc="Continue, "]');
+            await next.click();
+            await sleep(500);
+
+            // check the title, Choose a Doctor lable
+            const title = await driver.$('//android.widget.TextView[@text="Choose a Doctor"]');
+            assert.equal(await title.getAttribute('text'), 'Choose a Doctor');
+
+            // location input field
+            searchBox = await driver.$('//android.widget.EditText[@text="Search location or doctor"]');
+        });
+
+        it.skip('TC2-5: check location and doctors (NJ - Clifton)', async () => {
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('Clifton');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.Clifton);
+
+            assert.equal(result, true);
+        });
+
+        it.skip('TC2-6: check location and doctors (NJ - Moonachie)', async () => {
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('Moonachie');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.Moonachie.providor);
+            assert.equal(result, true);
+        });
+
+        it.skip('TC2-7: check location and doctors (NJ - Edgewater Adult)', async () => {
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('Edgewater Adult');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.EdgewaterAdult);
+            assert.equal(result, true);
+        });
+
+        it.skip('TC2-8: check location and doctors (NJ - Paramus Adult)', async () => {
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('Paramus Adult');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.ParamusAdult);
+            assert.equal(result, true);
+        });
+
+        it.skip('TC2-9: check location and doctors (NY - West End Adult)', async () => {
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('West End Adult');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.WestEndAdult);
+            assert.equal(result, true);
+        });
+
+        it.skip('TC2-10: check location and doctors (NY - Brighton Beach)', async () => {
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue('Brighton Beach');
+            await sleep(500);
+
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            let result = await compareTextView(textView, DEPARTMENT_PROVIDER.BrightonBeach);
+            assert.equal(result, true);
+        });
+
+        it('TC2-11: make a reservation with any doctor in the member\'s department', async () => {
+            // scroll up
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Choose a Doctor")`);
+            await sleep(500);
+
+            // select All
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="All"]/android.view.ViewGroup');
+            await button.click();
+
+            //location input
+            await searchBox.clearValue();
+            await searchBox.setValue(global.testUser.member.department);
+            await sleep(500);
+
+            // scroll down
+            await driver.$(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollTextIntoView("Any Doctor")`);
+            await sleep(500);
+
+            const button2 = await driver.$('//android.view.ViewGroup[@content-desc="Any Doctor"]/android.view.ViewGroup[1]');
+            await button2.click();
+            await sleep(500);
+
+            // click continue button
+            const next = await driver.$('//android.view.ViewGroup[@content-desc="Continue, "]');
+            await next.click();
+            await sleep(500);
+
+            // check title on the next page
+            const title = await driver.$('//android.widget.TextView[@text="Any Doctor"]');
+            assert.equal(await title.getAttribute('text'), 'Any Doctor');
+        });
+
+        it('TC2-12: select date from calendar', async () => {            
+            // slect date from calendar
+            await selectFromCalendar();
+
+            // check title on the next page
+            const title = await driver.$('//android.widget.TextView[@text="Medical Reservation Type"]');
+            assert.equal(await title.getAttribute('text'), 'Medical Reservation Type');
+        });
+
+        it('TC2-13: select reservation type Any20/Any10', async () => {
+            let button;
+
+            try {
+                // select Any20
+                button = await driver.$('//android.view.ViewGroup[@content-desc="Any 20"]/android.view.ViewGroup');
+                await button.click();
+            } catch (err) { 
+                // select Any10
+                button = await driver.$('//android.view.ViewGroup[@content-desc="Any 10"]/android.view.ViewGroup');
+                await button.click();
+            }
+
+            // click continue button
+            const next = await driver.$('//android.view.ViewGroup[@content-desc="Continue, "]');
+            await next.click();
+            await sleep(500);
+
+            // check title on the next page
+            const title = await driver.$('//android.widget.TextView[@text="Confirm Reservation"]');
+            assert.equal(await title.getAttribute('text'), 'Confirm Reservation');
+        });
+
+        it('TC2-14: confirm reservation', async () => {
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+            
+            for (let i = 0; i < textView.length; i++) {
+                const text = await textView[i].getText();
+                console.log(`TextView #${i}: text='${text}'`);
+                
+                // Name
+                if (i == 2) {
+                    assert.equal(text, global.testUser.member.firstName + ' ' + global.testUser.member.lastName);
+                }
+
+                // Department
+                if (i == 3) {
+                    assert.equal(text, global.testUser.member.department);
+                }
+
+                // TODO Address
+                if (i == 4) {
+                    ;
+                }
+                
+                // Doctor
+                if (i == 5) {
+                    global.testUser.member.reservation.doctor = text;
+                }
+
+                // Reservation Type
+                if (i == 8) {
+                    assert.equal(text, 'Any 20');
+                }
+
+                // Reservation Date
+                if (i == 10) {
+                    assert.equal(text, global.testUser.member.reservation.date);
+                }
+
+                // TODO Reservation Time
+                if (i == 12) {
+                    console.log(text.startsWith(global.testUser.member.reservation.time));
+                    break;
+                }
+            }
+
+            // click Make a Reservation
+            const button = await driver.$('//android.view.ViewGroup[@content-desc="Make a Reservation"]');
+            await button.click();
+            await sleep(500);
+
+            // check title
+            const title = await driver.$('//android.widget.TextView[@text="Next Reservation"]');
+            assert.equal(await title.getAttribute('text'), 'Next Reservation');
+        });
+
+        it('TC2-15: check the reservation information on Reservation', async () => {
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+
+            for (let i = 0; i < textView.length; i++) {
+                const text = await textView[i].getText();
+                console.log(`TextView #${i}: text='${text}'`);
+
+                // Reservation Date and Time
+                if (i == 5) {
+                    assert.equal(text, global.testUser.member.reservation.date + ' at ' + global.testUser.member.reservation.time);
+                }
+
+                // Doctor
+                if (i == 6) {
+                    assert.equal(text, global.testUser.member.reservation.doctor);
+                }
+
+                // Department
+                if (i == 7) {
+                    assert.equal(text, global.testUser.member.department);
+                    break;
+                }
+            }
+            
+            // get footer (Home)
+            const footer = await driver.$('//android.view.View[@content-desc=", Home"]');
+            await footer.click();
+            await sleep(1000);
+        });
+
+        it('TC2-16: check the reservation information on Home', async () => {
+            const textView = await $$('android=new UiSelector().className("android.widget.TextView")');
+            console.log(`Found ${textView.length} TextView elements.`);
+
+            for (let i = 0; i < textView.length; i++) {
+                const text = await textView[i].getText();
+                console.log(`TextView #${i}: text='${text}'`);
+
+                // Reservation Date and Time
+                if (i == 5) {
+                    assert.equal(text, global.testUser.member.reservation.date + ' at ' + global.testUser.member.reservation.time);
+                }
+
+                // Doctor
+                if (i == 6) {
+                    assert.equal(text, global.testUser.member.reservation.doctor);
+                }
+
+                // Department
+                if (i == 7) {
+                    assert.equal(text, global.testUser.member.department);
+                    break;
+                }
+            }
+        });
+
+        it('TC2-17: cancel Reservation on Home', async () => {
+            // click Cancel
+            // xpath for the cancel button changes after login and making reservation
+            const cancel = await driver.$('(//android.view.ViewGroup[@content-desc="Cancel"])[2]');
+            await cancel.click();
+            await sleep(500);
+
+            // click Cancel Reservation on modal
+            const confirm = await driver.$('//android.view.ViewGroup[@content-desc="Cancel Reservation"]');
+            await confirm.click();
+            await sleep(1000);
+        });
+    });
+
+    describe('Logout', () => {
+        beforeEach(function () {
+            if (!global.testUser.isLogin) {
+                console.log('User Not LoggedIn!!');
+                this.skip();
+            }
+        });
+
+        it('TC1-3: logout', async () => {
+            //Profile
+            const profile = await driver.$('//android.view.View[@content-desc="Profile"]');
+            await profile.click();
+            await sleep(500);
+
+            //Logout
+            const logout = await driver.$('//android.view.ViewGroup[@content-desc="Log Out"]');
+            await logout.click();
+            await sleep(500);
+            global.isLoggedIn = false;
+        });
+    });
+});

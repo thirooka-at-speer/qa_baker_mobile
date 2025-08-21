@@ -1,0 +1,6 @@
+node_modules
+appium.log
+*.html
+.tsbuild
+apps/*
+reports/*
